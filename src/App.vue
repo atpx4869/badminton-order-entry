@@ -1631,6 +1631,9 @@ function getCellTextValue(row: OrderRow, field: EditableField): string {
   }
   const value = row[field]
   if (typeof value === 'number') {
+    if ((field === 'shuttlecockQty' || field === 'bagQty' || field === 'gripQty' || field === 'freight') && value === 0) {
+      return ''
+    }
     return String(value)
   }
   return String(value ?? '').trim()
@@ -1709,12 +1712,12 @@ async function exportExcelData(data: OrderRow[], label: '全部' | '选中') {
     收货地址: row.address,
     商品描述: formatProductDescForDisplay(row),
     商品数量: row.productQty,
-    羽毛球数量: row.shuttlecockQty,
-    拍包数量: row.bagQty,
-    手胶数量: row.gripQty,
+    羽毛球数量: row.shuttlecockQty === 0 ? '' : row.shuttlecockQty,
+    拍包数量: row.bagQty === 0 ? '' : row.bagQty,
+    手胶数量: row.gripQty === 0 ? '' : row.gripQty,
     代理人: row.agent,
     发货地: row.shipFrom,
-    运费: row.freight,
+    运费: row.freight === 0 ? '' : row.freight,
     快递单号: row.trackingNo,
     导入时间: row.importedAt,
   }))
