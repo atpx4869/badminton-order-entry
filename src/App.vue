@@ -233,7 +233,8 @@ function normalizeSerialNo(list: OrderRow[]): OrderRow[] {
   let fallback = 1
   return list.map((row) => {
     const shipFrom = row.shipFrom?.trim() ? row.shipFrom : getDefaultShipFrom()
-    const freight = row.shipFrom?.trim() ? row.freight : computeFreight(shipFrom)
+    const freightValue = Number(row.freight)
+    const freight = Number.isFinite(freightValue) ? freightValue : computeFreight(row.address)
 
     const value = Number(row.serialNo)
     if (Number.isInteger(value) && value > 0 && !seen.has(value)) {
@@ -473,10 +474,12 @@ function loadRowsFromStorage(): OrderRow[] {
         const cleanName = nameParsed.cleanName || String(item.name ?? '').trim()
         const cleanAddress = addressParsed.cleanAddress || String(item.address ?? '').trim()
         const cleanProductDesc = normalizeProductDescText(typeof item.productDesc === 'string' ? item.productDesc : '')
-          const fallbackShipFrom =
+        const fallbackShipFrom =
           typeof item.shipFrom === 'string' && item.shipFrom.trim() ? item.shipFrom.trim() : getDefaultShipFrom()
         const fallbackFreight =
-          typeof item.freight === 'number' && Number.isFinite(item.freight) ? item.freight : computeFreight(fallbackShipFrom)
+          typeof item.freight === 'number' && Number.isFinite(item.freight)
+            ? item.freight
+            : computeFreight(cleanAddress)
         return {
           ...item,
           serialNo,
@@ -882,9 +885,10 @@ function getDefaultShipFrom(): string {
   return current.trim()
 }
 
-function computeFreight(shipFrom: string): number {
+function computeFreight(address: string): number {
   const amount = Number(freightRuleText.value.freightAmount || 0)
-  return nonFreeRegions.value.some((region) => shipFrom.includes(region)) ? amount : 0
+  const normalizedAddress = normalizeText(address)
+  return nonFreeRegions.value.some((region) => normalizedAddress.includes(region)) ? amount : 0
 }
 
 function buildAiFallbackPrompt(rawText: string): string {
@@ -987,7 +991,7 @@ async function tryAiAssistParse(source: string, options: ParseOptions): Promise<
         gripQty: Number.isFinite(Number(item.gripQty)) ? Number(item.gripQty) : counts.gripQty,
         agent: String(item.agent ?? '').trim(),
         shipFrom,
-        freight: Number.isFinite(freight) ? freight : computeFreight(shipFrom),
+        freight: Number.isFinite(freight) ? freight : computeFreight(addressParsed.cleanAddress),
         trackingNo: String(item.trackingNo ?? '').trim(),
         importedAt: formatDateTime(),
         parseStatus: 'warning',
@@ -1335,7 +1339,7 @@ function parseBlock(block: string, index: number): ParseBlockResult {
 
   const shipFrom = getDefaultShipFrom()
   const normalizedProductDesc = normalizeProductDescText(productDesc)
-  const freight = computeFreight(shipFrom)
+  const freight = computeFreight(address)
   const counts = getCounts(normalizedProductDesc)
 
   const row: OrderRow = {
@@ -1520,7 +1524,7 @@ function addEmptyRow() {
     gripQty: 0,
     agent: '',
     shipFrom: getDefaultShipFrom(),
-    freight: computeFreight(getDefaultShipFrom()),
+    freight: computeFreight(''),
     trackingNo: '',
     importedAt: formatDateTime(),
     parseStatus: 'success',
@@ -1570,7 +1574,7 @@ function refreshCalculatedFields(row: OrderRow) {
   row.shuttlecockQty = counts.shuttlecockQty
   row.bagQty = counts.bagQty
   row.gripQty = counts.gripQty
-  row.freight = computeFreight(row.shipFrom)
+  row.freight = computeFreight(row.address)
 }
 
 function handleAddressFocus(row: OrderRow) {
@@ -1595,6 +1599,7 @@ function handleAddressBlur(row: OrderRow) {
   })
   row.address = appendVirtualNoSuffix(validation.normalizedAddress, virtualNo)
   row.virtualNo = virtualNo
+  row.freight = computeFreight(row.address)
 
   const nextIssues = (row.parseIssues ?? []).filter((issue) => !ADDRESS_ISSUE_SET.has(issue.code))
   validation.issues.forEach((issue) => appendIssue(nextIssues, issue))
@@ -1633,7 +1638,7 @@ function applyBatch() {
     },
     shipFrom: (row) => {
       row.shipFrom = stringValue
-      row.freight = computeFreight(row.shipFrom)
+      row.freight = computeFreight(row.address)
     },
     trackingNo: (row) => {
       row.trackingNo = stringValue
@@ -1719,7 +1724,7 @@ function handleEditableBlur(row: OrderRow, field: EditableField) {
     refreshCalculatedFields(row)
   }
   if (field === 'shipFrom') {
-    row.freight = computeFreight(row.shipFrom)
+    row.freight = computeFreight(row.address)
   }
   editingCell.value = null
 }
@@ -1733,6 +1738,9 @@ function handleEditableFocusIn(row: OrderRow, field: EditableField) {
 function onTextInput(field: 'name' | 'phone' | 'address' | 'agent' | 'shipFrom' | 'trackingNo', row: OrderRow, event: Event) {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement | null
   row[field] = target?.value ?? ''
+  if (field === 'address') {
+    row.freight = computeFreight(row.address)
+  }
 }
 
 function onNumberChange(field: 'productQty' | 'shuttlecockQty' | 'bagQty' | 'gripQty' | 'freight', row: OrderRow, value: unknown) {
