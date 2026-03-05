@@ -25,6 +25,20 @@ body {
   min-height: 100vh;
 }
 
+.access-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.access-card {
+  width: min(460px, 100%);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(38, 64, 130, 0.1);
+}
+
 .page {
   padding: 20px;
   display: grid;

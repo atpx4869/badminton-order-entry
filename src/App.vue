@@ -118,6 +118,8 @@ const STORAGE_KEY = 'badminton-order-rows-v1'
 const RULES_STORAGE_KEY = 'badminton-parser-rules-v1'
 const FREIGHT_RULES_STORAGE_KEY = 'badminton-freight-rules-v1'
 const AI_ASSIST_STORAGE_KEY = 'badminton-ai-assist-config-v1'
+const ACCESS_UNLOCK_SESSION_KEY = 'badminton-access-unlocked-session-v1'
+const ACCESS_PASSWORD_HASH = 'b946cdd96273b51d4e3b928d1e6cbff9b78bdfd81e8282b6ed19de978f66d021'
 
 const DEFAULT_RULE_TEXT: RuleConfigText = {
   shuttlecock: 'vt,tv,天斧,古红,藏青,70,100zz',
@@ -147,6 +149,9 @@ const rows = ref<OrderRow[]>([])
 const selectedRowKeys = ref<string[]>([])
 const importModalOpen = ref(false)
 const settingsModalOpen = ref(false)
+const accessGranted = ref(sessionStorage.getItem(ACCESS_UNLOCK_SESSION_KEY) === '1')
+const accessPasswordInput = ref('')
+const accessChecking = ref(false)
 const serialMode = ref<'view' | 'origin'>('view')
 const exportSortByOriginSerial = ref(true)
 const importMode = ref<ImportMode>('append')
@@ -176,6 +181,43 @@ function loadXlsx() {
     xlsxModulePromise = import('xlsx-js-style')
   }
   return xlsxModulePromise
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const encoded = new TextEncoder().encode(text)
+  const digest = await crypto.subtle.digest('SHA-256', encoded)
+  return Array.from(new Uint8Array(digest))
+    .map((item) => item.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function unlockApp() {
+  const password = accessPasswordInput.value
+  if (!password) {
+    message.warning('请输入访问密码')
+    return
+  }
+
+  accessChecking.value = true
+  try {
+    const hash = await sha256Hex(password)
+    if (hash === ACCESS_PASSWORD_HASH) {
+      accessGranted.value = true
+      sessionStorage.setItem(ACCESS_UNLOCK_SESSION_KEY, '1')
+      accessPasswordInput.value = ''
+      message.success('验证通过')
+      return
+    }
+    message.error('密码错误')
+  } catch {
+    message.error('当前环境不支持密码校验')
+  } finally {
+    accessChecking.value = false
+  }
+}
+
+function handleAccessPasswordEnter() {
+  void unlockApp()
 }
 
 function getNextSerialNo(list: OrderRow[]): number {
@@ -1830,7 +1872,22 @@ function getRowKey(record: OrderRow): string {
 </script>
 
 <template>
-  <div class="page">
+  <div v-if="!accessGranted" class="access-page">
+    <a-card class="access-card" title="访问验证">
+      <a-space direction="vertical" style="width: 100%" :size="12">
+        <p class="helper-text">请输入访问密码后进入系统</p>
+        <a-input-password
+          v-model:value="accessPasswordInput"
+          size="large"
+          placeholder="请输入访问密码"
+          @pressEnter="handleAccessPasswordEnter"
+        />
+        <a-button type="primary" size="large" block :loading="accessChecking" @click="unlockApp">进入系统</a-button>
+      </a-space>
+    </a-card>
+  </div>
+
+  <div v-else class="page">
     <header class="top-card">
       <div>
         <h1>商单录入系统（羽毛球）</h1>
