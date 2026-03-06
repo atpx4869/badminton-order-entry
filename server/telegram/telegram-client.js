@@ -1,6 +1,11 @@
 export function createTelegramClient(config) {
   const jsonHeaders = { 'Content-Type': 'application/json' }
 
+  function shouldRetryWithoutReply(error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return message.includes('message to be replied not found')
+  }
+
   async function request(method, init = {}) {
     const response = await fetch(`${config.apiBase}/bot${config.token}/${method}`, init)
     const data = await response.json().catch(() => ({}))
@@ -9,6 +14,50 @@ export function createTelegramClient(config) {
       throw new Error(message)
     }
     return data.result
+  }
+
+  async function requestJsonWithOptionalReply(method, payload) {
+    try {
+      return await request(method, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(payload),
+      })
+    } catch (error) {
+      if (!payload.reply_to_message_id || !shouldRetryWithoutReply(error)) {
+        throw error
+      }
+      const retryPayload = { ...payload }
+      delete retryPayload.reply_to_message_id
+      return request(method, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(retryPayload),
+      })
+    }
+  }
+
+  async function requestFormDataWithOptionalReply(method, formData, replyToMessageId) {
+    try {
+      return await request(method, {
+        method: 'POST',
+        body: formData,
+      })
+    } catch (error) {
+      if (!replyToMessageId || !shouldRetryWithoutReply(error)) {
+        throw error
+      }
+      const retryFormData = new FormData()
+      for (const [key, value] of formData.entries()) {
+        if (key !== 'reply_to_message_id') {
+          retryFormData.append(key, value)
+        }
+      }
+      return request(method, {
+        method: 'POST',
+        body: retryFormData,
+      })
+    }
   }
 
   return {
@@ -25,14 +74,10 @@ export function createTelegramClient(config) {
       })
     },
     sendMessage(chatId, text, replyToMessageId) {
-      return request('sendMessage', {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          reply_to_message_id: replyToMessageId,
-        }),
+      return requestJsonWithOptionalReply('sendMessage', {
+        chat_id: chatId,
+        text,
+        reply_to_message_id: replyToMessageId,
       })
     },
     sendDocument(chatId, buffer, filename, caption, replyToMessageId) {
@@ -49,10 +94,7 @@ export function createTelegramClient(config) {
         }),
         filename,
       )
-      return request('sendDocument', {
-        method: 'POST',
-        body: formData,
-      })
+      return requestFormDataWithOptionalReply('sendDocument', formData, replyToMessageId)
     },
     getFile(fileId) {
       return request('getFile', {
@@ -99,4 +141,3 @@ export function createTelegramClient(config) {
     },
   }
 }
-
