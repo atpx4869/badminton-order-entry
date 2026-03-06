@@ -205,12 +205,7 @@ git push -u origin main
 - 将 `warning` 行在 Excel 的 `订单` 工作表中标黄
 - 将无法识别的内容写入 `识别失败` 工作表
 
-### 部署方式
-
-- `Vercel`：推荐使用 `webhook` 版
-- 本地或传统服务器：仍可继续使用 `轮询` 版
-
-### Vercel 部署步骤
+### 启动方式
 
 1. 复制环境变量模板：
 
@@ -218,29 +213,13 @@ git push -u origin main
 cp .env.example .env
 ```
 
-2. 在 Vercel 项目的 `Settings -> Environment Variables` 中至少配置：
+2. 在 `.env` 中配置：
 
 ```bash
 TELEGRAM_BOT_TOKEN=你的新token
-TELEGRAM_WEBHOOK_BASE_URL=https://你的项目域名.vercel.app
-TELEGRAM_WEBHOOK_SECRET_TOKEN=自定义一段随机字符串
 ```
 
-3. 重新部署 Vercel 项目
-
-4. 部署完成后，在本地项目目录执行：
-
-```bash
-npm run bot:set-webhook
-```
-
-5. Telegram webhook 地址默认会指向：
-
-```text
-https://你的项目域名.vercel.app/api/telegram-webhook
-```
-
-### 本地轮询版启动方式
+3. 启动 Bot：
 
 ```bash
 npm run bot:telegram
@@ -251,23 +230,12 @@ npm run bot:telegram
 - `TELEGRAM_ALLOWED_CHAT_IDS`：限制允许使用机器人的 chat id，多个用英文逗号分隔
 - `TELEGRAM_POLLING_TIMEOUT_SEC`：Telegram 长轮询超时时间
 - `TELEGRAM_RETRY_DELAY_MS`：接口失败后的重试间隔
-- `TELEGRAM_WEBHOOK_BASE_URL`：Webhook 基础域名
-- `TELEGRAM_WEBHOOK_PATH`：Webhook 路径，默认 `/api/telegram-webhook`
-- `TELEGRAM_WEBHOOK_SECRET_TOKEN`：Telegram 请求头校验密钥
-- `TELEGRAM_WEBHOOK_URL`：如果你想完全自定义 webhook 地址，可直接设置这个值
 
 ### 返回结果说明
 
 - `订单` 工作表：成功和待确认订单
 - `识别失败` 工作表：无法识别的原始片段、问题码、问题说明
 - Bot 回复消息：会同步提示成功 / 待确认 / 失败数量
-
-### 相关命令
-
-```bash
-npm run bot:set-webhook
-npm run bot:delete-webhook
-```
 
 ### 安全建议
 
